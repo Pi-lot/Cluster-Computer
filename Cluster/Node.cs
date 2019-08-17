@@ -12,11 +12,10 @@ namespace Cluster {
     class Node {
         // Lists to track connections and interfaces to listen on, as well as
         // broadcast client.
-        private List<Socket> connections = new List<Socket>();
-        private List<Socket> interfaceListeners = new List<Socket>();
+        private List<TcpClient> connections = new List<TcpClient>();
+        private List<TcpListener> interfaceListeners = new List<TcpListener>();
         private List<IPEndPoint> broadcasts = new List<IPEndPoint>();
         private List<Socket> helpers = new List<Socket>();
-        private List<Task> socketListens = new List<Task>();
         private UdpClient broadcastClient;
         private bool listen = true;
         private bool helper = false;
@@ -44,11 +43,8 @@ namespace Cluster {
                                 ip[i] = Byte.Parse(ips[i]);
                             }
                             IPAddress iPAddress = new IPAddress(ip);
-                            IPEndPoint endpoint = new IPEndPoint(iPAddress, port);
-                            Socket socket = new Socket(endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                            socket.Bind(endpoint);
-                            socket.Listen(100);
-                            interfaceListeners.Add(socket);
+                            TcpListener tcpListener = new TcpListener(iPAddress, port);
+                            interfaceListeners.Add(tcpListener);
                             byte[] broad = new byte[4];
                             if (ui.Address.ToString().Equals(iPAddress.ToString())) {
                                 int index = 0;
@@ -93,8 +89,10 @@ namespace Cluster {
         /// Consists of broadcasting Join commmand, then awaiting connections of interfaces
         /// </summary>
         public void GoOnline() {
+            foreach (TcpListener listener in interfaceListeners)
+                listener.Start();
             for (int i = 0; i < broadcasts.Count; i++) {
-                string join = "Join:" + interfaceListeners[i].LocalEndPoint;
+                string join = "Join:" + interfaceListeners[i].LocalEndpoint;
                 byte[] joinCommand = Encoding.UTF8.GetBytes(join);
                 Console.WriteLine("Broadcasting online on: {0}", broadcasts[i].ToString());
                 broadcastClient.Client.SendTo(joinCommand, broadcasts[i]);
@@ -103,20 +101,29 @@ namespace Cluster {
             }
         }
 
-        private async void AcceptConnections(Socket socket) {
+        private async void AcceptConnections(TcpListener socket) {
             while (listen) {
-                connections.Add(await socket.AcceptAsync());
+                TcpClient client = await socket.AcceptTcpClientAsync();
+                connections.Add(client);
                 connections.Distinct();
-                Console.WriteLine("Connected to {0}", connections[connections.Count - 1].RemoteEndPoint);
+                Console.WriteLine("Connected to {0}", connections[connections.Count - 1].Client.RemoteEndPoint);
                 ConnectionListen(connections[connections.Count - 1]);
             }
         }
 
-        private async void ConnectionListen(Socket socket) {
-            await Task.Run(() => SocketListen(socket));
+        private async void ConnectionListen(TcpClient socket) {
+            NetworkStream stream = socket.GetStream();
+            byte[] buffer = new byte[1024];
 
-            if (listen)
-                ConnectionListen(socket);
+            while (listen) {
+                int bytes = await stream.ReadAsync(buffer, 0, buffer.Length);
+                byte[] data = new byte[bytes];
+                for (int i = 0; i < bytes; i++) {
+                    data[i] = buffer[i];
+                }
+                Console.WriteLine("Recived {0} bytes from {1} reading {2}", bytes, socket.Client.RemoteEndPoint,
+                    Encoding.ASCII.GetString(data));
+            }
         }
 
         public void SetParallelBody(Action body) {
@@ -171,7 +178,7 @@ namespace Cluster {
                                 Console.WriteLine("Muli Node problem, running parallel compute");
                                 Console.WriteLine("Requesting helpers from cluster");
                                 for (int i = 0; i < broadcasts.Count; i++) {
-                                    string help = Encoding.UTF8.GetBytes("Parallel-Help:") + interfaceListeners[i].LocalEndPoint.ToString();
+                                    string help = Encoding.UTF8.GetBytes("Parallel-Help:") + interfaceListeners[i].LocalEndpoint.ToString();
                                     broadcastClient.Client.SendTo(Encoding.UTF8.GetBytes(help), broadcasts[i]);
                                 }
                                 buffer = new byte[4];
@@ -223,16 +230,16 @@ namespace Cluster {
         public void ListConnections() {
             Console.WriteLine("Listing Connections");
             if (connections.Count > 0)
-                foreach (Socket socket in connections)
-                    Console.WriteLine(socket.RemoteEndPoint);
+                foreach (TcpClient socket in connections)
+                    Console.WriteLine(socket.Client.RemoteEndPoint);
             else
                 Console.WriteLine("No connections to lists");
         }
 
         public void ListListeners() {
             Console.WriteLine("Listing listeners");
-            foreach (Socket socket in interfaceListeners)
-                Console.WriteLine(socket.LocalEndPoint);
+            foreach (TcpListener socket in interfaceListeners)
+                Console.WriteLine(socket.LocalEndpoint);
         }
 
         /// <summary>
@@ -242,16 +249,16 @@ namespace Cluster {
             Console.WriteLine("Closing Node");
             listen = false;
             for (int i = 0; i < broadcasts.Count; i++) {
-                string leave = "Leave:" + interfaceListeners[0].LocalEndPoint;
+                string leave = "Leave:" + interfaceListeners[0].LocalEndpoint;
                 byte[] leaveCommand = Encoding.UTF8.GetBytes(leave);
                 Console.WriteLine("Broadcasting leave on: {0}", broadcasts[0].ToString());
                 broadcastClient.Client.SendTo(leaveCommand, broadcasts[0]);
                 broadcasts.RemoveAt(0);
-                interfaceListeners[0].Close();
+                interfaceListeners[0].Stop();
                 interfaceListeners.RemoveAt(0);
             }
             for (int i = 0; i < connections.Count; i++) {
-                connections[0].Shutdown(SocketShutdown.Both);
+                connections[0].Client.Shutdown(SocketShutdown.Both);
                 connections[0].Close();
                 connections.RemoveAt(0);
             }
@@ -270,15 +277,15 @@ namespace Cluster {
 
             bool me = false;
 
-            foreach (Socket socket in interfaceListeners) {
-                if (socket.LocalEndPoint.Equals(ep))
+            foreach (TcpListener socket in interfaceListeners) {
+                if (socket.LocalEndpoint.Equals(ep))
                     me = true;
             }
 
             if (!me) {
-                Socket socket = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                connections.Add(socket);
-                socket.Connect(ep);
+                TcpClient client = new TcpClient(ep);
+                client.Connect(ep);
+                connections.Add(client);
                 Console.WriteLine("Connection made with {0}", ep.ToString());
             } else {
                 Console.WriteLine("Found myself");
@@ -292,8 +299,8 @@ namespace Cluster {
         public void DisconnectFromNode(byte[] ipAddress) {
             IPAddress ip = new IPAddress(ipAddress);
             for (int i = connections.Count - 1; i >= 0; i--)
-                if (connections[i].RemoteEndPoint.ToString().Split(':')[0].Equals(ip.ToString())) {
-                    connections[i].Shutdown(SocketShutdown.Both);
+                if (connections[i].Client.RemoteEndPoint.ToString().Split(':')[0].Equals(ip.ToString())) {
+                    connections[i].Client.Shutdown(SocketShutdown.Both);
                     connections[i].Close();
                     connections.RemoveAt(i);
                 }
@@ -342,15 +349,16 @@ namespace Cluster {
                     case "Entry-Request":
                         for (int i = 0; i < broadcasts.Count; i++)
                             if (broadcasts[i].Address.ToString().Equals(command[1])) {
-                                string entryResponse = "Entry:" + interfaceListeners[i].LocalEndPoint;
+                                string entryResponse = "Entry:" + interfaceListeners[i].LocalEndpoint;
                                 broadcastClient.Client.SendTo(Encoding.UTF8.GetBytes(entryResponse), broadcasts[i]);
                             }
                         break;
                     case "Parallel-Help":
                         Console.WriteLine("Helper request from {0} for parallel problem", command[1]);
                         for (int i = 0; i < connections.Count; i++)
-                            if (connections[i].RemoteEndPoint.ToString().Split(':')[0].Equals(command[1])) {
-                                connections[i].Send(Encoding.UTF8.GetBytes("Helper"));
+                            if (connections[i].Client.RemoteEndPoint.ToString().Split(':')[0].Equals(command[1])) {
+                                byte[] message = Encoding.UTF8.GetBytes("Helper");
+                                connections[i].GetStream().Write(message, 0, message.Length);
                             }
                         break;
                 }
