@@ -18,8 +18,6 @@ namespace Cluster {
         private UdpClient broadcastClient;
         private bool listen = true;
         private bool helper = false;
-        private Action ParallelBody;
-        private Action SeqBody;
         private int port;
 
         /// <summary>
@@ -110,16 +108,17 @@ namespace Cluster {
             foreach (TcpListener listener in interfaceListeners)
                 listener.Start();
 
-            string join = "Join:";
+            string join = "Join;";
             for (int i = 0; i < interfaceListeners.Count; i++) {
                 join += interfaceListeners[i].LocalEndpoint + ",";
-                Console.WriteLine("Broadcasting online on: {0}", interfaceListeners[i].LocalEndpoint);
+                Console.WriteLine("Using interface: {0}", interfaceListeners[i].LocalEndpoint);
                 Console.WriteLine("Awaiting Connection");
                 AcceptConnections(interfaceListeners[i]);
             }
             join = join.Remove(join.LastIndexOf(","));
 
             byte[] joinCommand = Encoding.UTF8.GetBytes(join);
+            Console.WriteLine("Online adresses: {0}", join.Split(";")[1]);
             broadcastClient.Send(joinCommand, joinCommand.Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), port));
         }
 
@@ -152,21 +151,13 @@ namespace Cluster {
             broadcastClient.Send(Encoding.UTF8.GetBytes(message), Encoding.UTF8.GetBytes(message).Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), port));
         }
 
-        public void SetParallelBody(Action body) {
-            ParallelBody = body;
-        }
-
-        public void SetSeqBody(Action body) {
-            SeqBody = body;
-        }
-
-        public byte[] ParallelMethod(Action body) {
+        public byte[] ParallelCompute(Action body) {
             if (body == null)
                 throw new NotImplementedException("No Parallel method set");
             return new byte[1];
         }
 
-        public byte[] SingleMethod(Action body) {
+        public byte[] SingleCompute(Action body) {
             if (body == null)
                 throw new NotImplementedException("No Seq method set");
             return new byte[1];
@@ -196,7 +187,7 @@ namespace Cluster {
                                 while (bytes != 4) {
                                     bytes += socket.Receive(buffer, bytes, (4 - bytes), SocketFlags.None);
                                 }
-                                socket.Send(SingleMethod(SeqBody));
+                                //socket.Send(SingleMethod(SeqBody));
                                 SocketListen(socket);
                                 break;
                             case "Parallel":
@@ -369,13 +360,14 @@ namespace Cluster {
                 UdpReceiveResult recieve = await broadcastClient.ReceiveAsync();
                 byte[] data = recieve.Buffer;
                 Console.WriteLine("Recieved {0}", Encoding.UTF8.GetString(data));
-                string[] command = Encoding.UTF8.GetString(data).Split(":");
+                string[] command = Encoding.UTF8.GetString(data).Split(";");
                 switch (command[0]) {
                     case "Join":
-                        Console.WriteLine("Join Request recieved from: {0} ip on: {1} port", command[1], command[2]);
-                        string[] ips = command[1].Split(",");
-                        foreach (string ip in ips) {
-                            Tuple<byte[], int> iPPort = FormatIPPort(ip, command[2]);
+                        string[] eps = command[1].Split(",");
+                        Console.WriteLine("Join Request recieved from: {0}", command[1]);
+                        foreach (string ip in eps) {
+                            string[] ipPortS = ip.Split(":");
+                            Tuple<byte[], int> iPPort = FormatIPPort(ipPortS[0], ipPortS[1]);
                             ConnectToNode(iPPort.Item1, iPPort.Item2);
                         }
                         break;

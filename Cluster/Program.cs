@@ -64,7 +64,7 @@ namespace Cluster {
             //test.Close();
             //Console.WriteLine("Port number");
             //int port = int.Parse(Console.ReadLine());
-            node.SetParallelBody(() => { byte[] b = new byte[1]; });
+            //node.SetParallelBody(() => { byte[] b = new byte[1]; });
             node.JoinCluster();
             bool run = true;
             while (run) {
