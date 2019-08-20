@@ -23,23 +23,23 @@ namespace Cluster {
 
         static void Main(string[] args) {
             Console.WriteLine("Cluster Class");
-            //Console.WriteLine("Specify IP?");
-            //string yes = Console.ReadKey().KeyChar.ToString();
-            //Console.WriteLine();
+            Console.WriteLine("Specify IP?");
+            string yes = Console.ReadKey().KeyChar.ToString();
+            Console.WriteLine();
             Node node;
-            //if (yes.ToLower().Equals("y")) {
-            //    Console.WriteLine("IP Please");
-            //    try {
-            //        IPAddress ip;
-            //        string ipS = Console.ReadLine();
-            //        IPAddress.TryParse(ipS, out ip);
-            //        node = new Node(ip, 11000);
-            //    } catch (Exception e) {
-            //        Console.WriteLine("Exception\n{0}", e.ToString());
-            //        node = new Node(11000);
-            //    }
-            //} else
-            node = new Node(11000);
+            if (yes.ToLower().Equals("y")) {
+                Console.WriteLine("IP Please");
+                try {
+                    IPAddress ip;
+                    string ipS = Console.ReadLine();
+                    IPAddress.TryParse(ipS, out ip);
+                    node = new Node(ip, 11000);
+                } catch (Exception e) {
+                    Console.WriteLine("Exception\n{0}", e.ToString());
+                    node = new Node(11000);
+                }
+            } else
+                node = new Node(11000);
             //byte[] ip = new byte[4];
             //ip[0] = 10;
             //bool repeat = true;
@@ -80,10 +80,6 @@ namespace Cluster {
                     Console.WriteLine("Testing Broadcast");
                     string message = Console.ReadLine();
                     node.TestBroadcast(message);
-                } else if (input.Equals("TCP")) {
-                    Console.WriteLine("Sending to TCP connection");
-                    string message = Console.ReadLine();
-                    node.TestTCP(message);
                 }
             }
         }
