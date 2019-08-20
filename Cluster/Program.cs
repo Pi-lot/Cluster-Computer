@@ -13,7 +13,7 @@ namespace Cluster {
         static void Main(string[] args) {
             Console.WriteLine("Cluster Class");
             Node node = new Node(11000);
-            node.SetParallelBody(() => { byte[] b = new byte[1]; });
+            //node.SetParallelBody(() => { byte[] b = new byte[1]; });
             node.JoinCluster();
             bool run = true;
             while (run) {
@@ -25,6 +25,12 @@ namespace Cluster {
                     node.ListConnections();
                 } else if (input.Equals("Listeners")) {
                     node.ListListeners();
+                } else if (input.Equals("Test")) {
+                    string message = Console.ReadLine();
+                    node.TestBroadcast(message);
+                } else if (input.Equals("TCP")) {
+                    string message = Console.ReadLine();
+                    node.TestTCP(message);
                 }
             }
         }
