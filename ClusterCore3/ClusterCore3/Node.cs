@@ -18,8 +18,8 @@ namespace ClusterCore3 {
         private UdpClient broadcastClient;
         private TcpListener listener;
         private bool listen = true;
-        private bool helper = false;
         private int port;
+        private IPEndPoint broad;
 
         /// <summary>
         /// Contructor that creates a Cluster Node using the specified port on
@@ -28,12 +28,10 @@ namespace ClusterCore3 {
         /// <param name="port">Port for the Cluster to listen on</param>
         public Node(int port) {
             NetworkInterface[] nf = NetworkInterface.GetAllNetworkInterfaces();
-
-
             foreach (NetworkInterface n in nf) {
                 foreach (UnicastIPAddressInformation ui in n.GetIPProperties().UnicastAddresses) {
-                    if (ui.Address.AddressFamily == AddressFamily.InterNetwork && n.NetworkInterfaceType == NetworkInterfaceType.Ethernet &&
-                        !n.Name.Equals("wlan0") && !n.Name.Equals("docker0") && !n.Name.StartsWith("Virtual")) {
+                    if (ui.Address.AddressFamily == AddressFamily.InterNetwork && !n.Name.Equals("docker0") && !n.Name.StartsWith("Virtual") &&
+                        !n.Name.StartsWith("Loopback")) {
                         try {
                             Console.WriteLine(n.Name);
                             Console.WriteLine(ui.Address);
@@ -70,6 +68,7 @@ namespace ClusterCore3 {
             broadcastClient.EnableBroadcast = true;
             listener = new TcpListener(IPAddress.Any, port);
             listener.ExclusiveAddressUse = false;
+            broad = new IPEndPoint(IPAddress.Parse("255.255.255.255"), port);
 
             if (interfaceAddresses.Count <= 0)
                 throw new Exception("No Ethernet Interfaces found. Please check your device or specify interface/interface type to listen on.");
@@ -303,6 +302,12 @@ namespace ClusterCore3 {
         /// <summary>
         /// Method to Disconnect the Node from the Cluster and close all sockets and broadcasters
         /// </summary>
+        public void StopListen() {
+            Console.WriteLine("Shutdown");
+            listen = false;
+            //SendBroad("", 3);
+            broadcastClient.Close();
+        }
         public void Close() {
             Console.WriteLine("Closing Node");
             listen = false;
@@ -397,6 +402,58 @@ namespace ClusterCore3 {
             int.TryParse(port, out p);
 
             return new Tuple<byte[], int>(ip, p);
+        }
+
+        public void SendBroad(string message, byte command) {
+            Console.WriteLine("Sending Broadcast. Message: {0}. Command: {1}", message, command);
+            byte[] data = new byte[message.Length + 1];
+            data[0] = command;
+            byte[] m = Encoding.UTF8.GetBytes(message);
+            for (int i = 1; i <= m.Length; i++)
+                data[^i] = m[^i];
+            broadcastClient.Send(data, data.Length, broad);
+        }
+
+        public async void StartListen() {
+            Console.WriteLine("Recieving Broadcasts");
+            UdpReceiveResult recieve = await broadcastClient.ReceiveAsync();
+            byte[] data = recieve.Buffer;
+            // 0 -> Entry-Point Request
+            // 1 -> Memory Request
+            // 2 -> Core Request
+            // 3 -> Entry Response / Node Close
+            // 4 -> Memory Response
+            // 5 -> Core Response
+            // _ -> Complete
+            switch (data[0]) {
+                case 0:
+                    Console.WriteLine("Entry");
+                    break;
+                case 1:
+                    Console.WriteLine("Memory");
+                    break;
+                case 2:
+                    Console.WriteLine("Core");
+                    break;
+                case 3:
+                    Console.WriteLine("Entry Response / Node Close. Ignore");
+                    break;
+                case 4:
+                    Console.WriteLine("Memory Response");
+                    break;
+                case 5:
+                    Console.WriteLine("Core Response");
+                    break;
+                default:
+                    Console.WriteLine("Complete");
+                    break;
+            };
+            byte[] m = new byte[data.Length - 1];
+            for (int i = 1; i < data.Length; i++)
+                m[^i] = data[^i];
+            Console.WriteLine("Message: " + Encoding.UTF8.GetString(m));
+            if (listen)
+                Broadcasts();
         }
 
         /// <summary>

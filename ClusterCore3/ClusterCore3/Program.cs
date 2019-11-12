@@ -12,8 +12,8 @@ using System.Diagnostics;
 namespace ClusterCore3 {
     class Program {
         static void Main(string[] args) {
-            Console.WriteLine(Process.GetCurrentProcess().MaxWorkingSet);
             Console.WriteLine("Cluster Class");
+            NetworkStream ns;
             //Console.WriteLine("Specify IP?");
             //string yes = Console.ReadKey().KeyChar.ToString();
             //Console.WriteLine();
@@ -56,12 +56,13 @@ namespace ClusterCore3 {
             //Console.WriteLine("Port number");
             //int port = int.Parse(Console.ReadLine());
             //node.SetParallelBody(() => { byte[] b = new byte[1]; });
-            node.JoinCluster();
+            //node.JoinCluster();
+            node.StartListen();
             bool run = true;
             while (run) {
                 string input = Console.ReadLine();
                 if (input.Equals("Stop")) {
-                    node.Close();
+                    node.StopListen();
                     run = false;
                 } else if (input.Equals("List")) {
                     node.ListConnections();
