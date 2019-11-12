@@ -7,10 +7,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text;
 using System.Net.NetworkInformation;
+using System.Diagnostics;
 
 namespace ClusterCore3 {
     class Program {
         static void Main(string[] args) {
+            Console.WriteLine(Process.GetCurrentProcess().MaxWorkingSet);
             Console.WriteLine("Cluster Class");
             //Console.WriteLine("Specify IP?");
             //string yes = Console.ReadKey().KeyChar.ToString();
