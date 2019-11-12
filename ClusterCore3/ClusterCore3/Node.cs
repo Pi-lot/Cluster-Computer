@@ -453,7 +453,7 @@ namespace ClusterCore3 {
                 m[^i] = data[^i];
             Console.WriteLine("Message: " + Encoding.UTF8.GetString(m));
             if (listen)
-                Broadcasts();
+                StartListen();
         }
 
         /// <summary>
