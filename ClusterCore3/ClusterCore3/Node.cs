@@ -65,7 +65,7 @@ namespace ClusterCore3 {
 
             this.port = port;
             broadcastClient = new UdpClient(port);
-            broadcastClient.Connect(new IPEndPoint(IPAddress.Broadcast, port));
+            broadcastClient.EnableBroadcast = true;
             listener = new TcpListener(IPAddress.Any, port);
             listener.ExclusiveAddressUse = false;
             broad = new IPEndPoint(IPAddress.Broadcast, port);
@@ -178,11 +178,7 @@ namespace ClusterCore3 {
         }
 
         public void TestBroadcast(string message) {
-            Console.WriteLine("Creating Broadcast Sender");
-            UdpClient broadSend = new UdpClient(port + 1);
-            broadSend.Send(Encoding.UTF8.GetBytes(message), Encoding.UTF8.GetBytes(message).Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), port));
-            broadSend.Close();
-            Console.WriteLine("Sent and Closed Sender");
+            broadcastClient.Send(Encoding.UTF8.GetBytes(message), Encoding.UTF8.GetBytes(message).Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), port));
         }
 
         public void TestTCP(string message) {
@@ -419,8 +415,9 @@ namespace ClusterCore3 {
 
         public async void StartListen() {
             Console.WriteLine("Recieving Broadcasts");
-            UdpReceiveResult recieve = await broadcastClient.ReceiveAsync();
-            byte[] data = recieve.Buffer;
+            UdpReceiveResult receive = await broadcastClient.ReceiveAsync();
+            Console.WriteLine(receive.RemoteEndPoint);
+            byte[] data = receive.Buffer;
             // 0 -> Entry-Point Request
             // 1 -> Memory Request
             // 2 -> Core Request
@@ -465,8 +462,9 @@ namespace ClusterCore3 {
         public async void GetBroadcasts() {
             Console.WriteLine("Recieving Broadcasts");
             while (listen) {
-                UdpReceiveResult recieve = await broadcastClient.ReceiveAsync();
-                byte[] data = recieve.Buffer;
+                UdpReceiveResult receive = await broadcastClient.ReceiveAsync();
+                Console.WriteLine(receive.RemoteEndPoint);
+                byte[] data = receive.Buffer;
                 Console.WriteLine("Recieved {0}", Encoding.UTF8.GetString(data));
                 string[] command = Encoding.UTF8.GetString(data).Split(":");
                 switch (command[0]) {
