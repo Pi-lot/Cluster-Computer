@@ -29,7 +29,6 @@ namespace Cluster {
         public Node(int port) {
             NetworkInterface[] nf = NetworkInterface.GetAllNetworkInterfaces();
 
-
             foreach (NetworkInterface n in nf) {
                 foreach (UnicastIPAddressInformation ui in n.GetIPProperties().UnicastAddresses) {
                     if (ui.Address.AddressFamily == AddressFamily.InterNetwork && n.NetworkInterfaceType == NetworkInterfaceType.Ethernet &&
