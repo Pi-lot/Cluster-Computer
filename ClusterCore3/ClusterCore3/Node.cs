@@ -64,11 +64,11 @@ namespace ClusterCore3 {
             }
 
             this.port = port;
-            broadcastClient = new UdpClient(port);
-            broadcastClient.EnableBroadcast = true;
             listener = new TcpListener(IPAddress.Any, port);
             listener.ExclusiveAddressUse = false;
             broad = new IPEndPoint(IPAddress.Broadcast, port);
+            broadcastClient = new UdpClient(new IPEndPoint(IPAddress.Any, port));
+            broadcastClient.EnableBroadcast = true;
 
             if (interfaceAddresses.Count <= 0)
                 throw new Exception("No Ethernet Interfaces found. Please check your device or specify interface/interface type to listen on.");
@@ -178,7 +178,19 @@ namespace ClusterCore3 {
         }
 
         public void TestBroadcast(string message) {
-            broadcastClient.Send(Encoding.UTF8.GetBytes(message), Encoding.UTF8.GetBytes(message).Length, new IPEndPoint(IPAddress.Parse("255.255.255.255"), port));
+            foreach (Tuple<IPEndPoint, int> add in interfaceAddresses) {
+                byte[] address = add.Item1.Address.GetAddressBytes();
+                for (int i = 0; i <  4 - (add.Item2 / 8); i++) {
+                    address[^(i + 1)] = 255;
+                }
+                IPAddress tempAdd = new IPAddress(address);
+                try {
+                    broadcastClient.Send(Encoding.UTF8.GetBytes(message),
+                    Encoding.UTF8.GetBytes(message).Length, new IPEndPoint(tempAdd, port));
+                } catch (Exception e) {
+                }
+                
+            }
         }
 
         public void TestTCP(string message) {
