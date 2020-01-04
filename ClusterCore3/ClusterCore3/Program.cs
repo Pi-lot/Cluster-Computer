@@ -30,7 +30,7 @@ namespace ClusterCore3 {
             //        node = new Node(11000);
             //    }
             //} else
-            node = new Node(11001);
+            node = new Node(11000);
             //byte[] ip = new byte[4];
             //ip[0] = 10;
             //bool repeat = true;
